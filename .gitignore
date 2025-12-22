@@ -35,9 +35,8 @@ config.json
 *.cov
 *.prof
 
-# Ignore dependency files
-*.mod
-*.sum
+# Ignore build output
+dist/
 
 # Ignore other system files
 .DS_Store

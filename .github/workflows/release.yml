@@ -1,0 +1,52 @@
+# GitHub Actions 工作流 - 自动发布
+# 当推送符合 v*.*.* 格式的 tag 时自动触发构建和发布
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # 例如: v1.0.0, v1.2.3
+
+permissions:
+  contents: write  # 允许创建 release 和上传资源
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 检出代码
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 获取完整历史记录，用于生成 changelog
+      
+      # 设置 Go 环境
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+      
+      # 运行测试
+      - name: Run tests
+        run: go test -v ./...
+      
+      # 运行 GoReleaser
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      # 上传构建产物为 artifacts（便于调试）
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/*
+          retention-days: 5

@@ -73,22 +73,105 @@ chore: update dependencies
 
 ### 环境要求
 
-- Go 1.21 或更新版本
+- Go 1.24 或更新版本
 - Windows 10 或更新版本
-- PowerShell 5.1
+- Git（用于版本控制）
 
-### 编译和测试
+### 本地开发和测试
 
 ```powershell
-# 编译
-.\build.ps1
+# 本地开发构建（快速测试）
+go build -o bin/gpd-touch-fix.exe
 
-# 测试
+# 运行测试
 go test ./...
 
-# 覆盖率
+# 运行测试并显示覆盖率
 go test -cover ./...
+
+# 详细测试输出
+go test -v ./...
 ```
+
+### 本地测试 GoReleaser
+
+在提交代码前，可以在本地测试 GoReleaser 配置是否正确：
+
+```powershell
+# 安装 GoReleaser (使用 Scoop 包管理器)
+scoop bucket add goreleaser https://github.com/goreleaser/scoop-bucket.git
+scoop install goreleaser
+
+# 或使用 winget
+winget install goreleaser.goreleaser
+
+# 测试构建（不发布）
+goreleaser release --snapshot --clean
+
+# 检查配置文件
+goreleaser check
+```
+
+构建产物会在 `dist/` 目录中。
+
+## 发布新版本
+
+本项目使用 GoReleaser 自动化发布流程。**只有项目维护者**有权限发布新版本。
+
+### 发布步骤
+
+1. **更新版本信息**
+   
+   确保 [CHANGELOG.md](CHANGELOG.md) 已更新，记录本次版本的更改内容。
+
+2. **创建并推送 Git tag**
+   
+   ```powershell
+   # 创建 tag（例如发布 v1.1.0）
+   git tag -a v1.1.0 -m "Release v1.1.0"
+   
+   # 推送 tag 到 GitHub
+   git push origin v1.1.0
+   ```
+
+3. **自动构建和发布**
+   
+   推送 tag 后，GitHub Actions 会自动：
+   - 运行所有单元测试
+   - 使用 GoReleaser 构建 Windows x64 和 x86 版本
+   - 生成 ZIP 归档包
+   - 自动创建 GitHub Release
+   - 上传构建产物
+   - 生成并附加 changelog
+
+4. **验证发布**
+   
+   前往 [Releases](https://github.com/gpd-touch/gpd-touch-fix/releases) 页面验证：
+   - Release 是否正确创建
+   - 所有归档文件是否已上传（x64 和 x86 版本）
+   - Changelog 是否正确生成
+   - 下载并测试二进制文件
+
+### 版本号规范
+
+遵循 [语义化版本 2.0.0](https://semver.org/lang/zh-CN/)：
+
+- **主版本号（Major）**：不兼容的 API 修改
+- **次版本号（Minor）**：向下兼容的功能性新增
+- **修订号（Patch）**：向下兼容的问题修正
+
+例如：`v1.2.3` = 主版本 1，次版本 2，修订号 3
+
+### 发布检查清单
+
+发布前确认：
+
+- [ ] 所有测试通过
+- [ ] CHANGELOG.md 已更新
+- [ ] 版本号符合语义化版本规范
+- [ ] README.md 中的功能描述是最新的
+- [ ] 代码已合并到 main 分支
+- [ ] 本地测试 GoReleaser 构建成功
 
 ## 行为准则
 

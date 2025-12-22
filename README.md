@@ -83,6 +83,10 @@ A: 理论上支持所有使用 I2C HID 触摸屏的 GPD 设备（Pocket、Win �
 
 欢迎提交 Issue 和 Pull Request！
 
+开发者请查看：
+- [贡献指南](CONTRIBUTING.md) - 如何参与贡献
+- [GoReleaser 使用文档](docs/GORELEASER.md) - 如何发布新版本（维护者）
+
 ##  许可证
 
 MIT License - 详见 [LICENSE](LICENSE)

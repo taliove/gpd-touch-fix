@@ -1,0 +1,52 @@
+name: 🚀 功能请求
+description: 建议一个新功能或改进
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢你提出功能建议！请详细描述你的想法。
+        
+  - type: textarea
+    id: problem
+    attributes:
+      label: 问题描述
+      description: 你想解决什么问题？
+      placeholder: 我遇到的问题是...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: solution
+    attributes:
+      label: 建议的解决方案
+      description: 你希望如何解决这个问题？
+      placeholder: 我希望能够...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 其他方案
+      description: 你考虑过其他替代方案吗？
+      placeholder: 另一种可能的方式是...
+      
+  - type: textarea
+    id: additional
+    attributes:
+      label: 其他信息
+      description: 还有其他需要补充的信息吗？
+      placeholder: 任何可能有助于理解这个功能的额外信息
+      
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: 确认事项
+      description: 提交前请确认
+      options:
+        - label: 我已经搜索过现有的 Issues，确认这不是重复的功能请求
+          required: true
+        - label: 这个功能与项目的目标相符（GPD 设备触屏修复）
+          required: true

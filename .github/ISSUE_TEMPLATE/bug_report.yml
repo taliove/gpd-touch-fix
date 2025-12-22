@@ -1,0 +1,110 @@
+name: 🐛 Bug 报告
+description: 报告项目中的 Bug
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢你花时间填写这个 Bug 报告！
+        
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 发生了什么？
+      description: 请清晰描述遇到的问题
+      placeholder: 告诉我们你遇到了什么问题
+    validations:
+      required: true
+      
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 如何重现？
+      description: 详细的重现步骤
+      placeholder: |
+        1. 执行命令 '...'
+        2. 点击 '...'
+        3. 看到错误 '...'
+    validations:
+      required: true
+      
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望的行为
+      description: 你期望应该发生什么？
+      placeholder: 应该显示...
+    validations:
+      required: true
+      
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志输出
+      description: 请粘贴相关的日志输出（可以运行 `.\gpd-touch-fix.exe -show-log`）
+      render: shell
+      
+  - type: dropdown
+    id: version
+    attributes:
+      label: 版本信息
+      description: 你使用的是哪个版本？
+      options:
+        - v1.0.0
+        - 最新版本
+        - 从源码编译
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: os
+    attributes:
+      label: 操作系统
+      description: 你的操作系统是什么？
+      options:
+        - Windows 11
+        - Windows 10
+        - 其他
+    validations:
+      required: true
+      
+  - type: dropdown
+    id: arch
+    attributes:
+      label: 系统架构
+      description: 你的系统是 64 位还是 32 位？
+      options:
+        - 64 位 (x64)
+        - 32 位 (x86)
+    validations:
+      required: true
+      
+  - type: textarea
+    id: device
+    attributes:
+      label: 设备信息
+      description: 你的 GPD 设备型号？
+      placeholder: 例如：GPD Pocket P4
+    validations:
+      required: false
+      
+  - type: textarea
+    id: additional
+    attributes:
+      label: 其他信息
+      description: 还有其他需要补充的信息吗？
+      placeholder: 任何可能有助于解决问题的额外信息
+      
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: 确认事项
+      description: 提交前请确认
+      options:
+        - label: 我已经搜索过现有的 Issues，确认这不是重复报告
+          required: true
+        - label: 我已经以管理员身份运行程序
+          required: true
+        - label: 我已经查看了文档和常见问题
+          required: true
