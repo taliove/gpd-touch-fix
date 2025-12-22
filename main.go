@@ -476,17 +476,17 @@ func runShowStatus() {
 // runShowLog 显示服务日志
 func runShowLog(lines int) {
 	cli := NewCLI()
-	cli.PrintTitle("GPD 触屏修复工具 - 服务日志")
+	cli.PrintTitle("GPD Touch Fix - Service Log")
 
 	logLines, err := ReadLogLines(lines)
 	if err != nil {
-		cli.PrintWarning("读取日志失败: %v", err)
-		cli.PrintInfo("日志目录: %s", GetLogDir())
+		cli.PrintWarning("Failed to read log: %v", err)
+		cli.PrintInfo("Log directory: %s", GetLogDir())
 		return
 	}
 
 	fmt.Print(FormatLogForDisplay(logLines))
-	fmt.Printf("\n显示最近 %d 行日志，日志目录: %s\n", len(logLines), GetLogDir())
+	fmt.Printf("\nShowing last %d lines, log directory: %s\n", len(logLines), GetLogDir())
 }
 
 // runShowStats 显示统计信息

@@ -29,7 +29,6 @@ builds:
     
     goarch:
       - amd64  # 64位
-      - "386"  # 32位
     
     # 构建钩子（可选）
     hooks:

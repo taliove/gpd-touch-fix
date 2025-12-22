@@ -323,41 +323,35 @@ func readFileLines(filePath string) ([]string, error) {
 // FormatLogForDisplay 格式化日志行用于显示
 func FormatLogForDisplay(lines []string) string {
 	if len(lines) == 0 {
-		return "暂无日志记录"
+		return "No log records found\n"
 	}
 
 	var sb strings.Builder
-	sb.WriteString("╔══════════════════════════════════════════════════════════════════╗\n")
-	sb.WriteString("║                          📋 服务日志                              ║\n")
-	sb.WriteString("╠══════════════════════════════════════════════════════════════════╣\n")
+	sb.WriteString("========== SERVICE LOG ==========\n\n")
 
 	for _, line := range lines {
-		// 根据日志级别添加颜色指示
-		prefix := "║ "
+		// Add prefix based on log level
+		prefix := "  "
 		if strings.Contains(line, "[ERROR]") || strings.Contains(line, "[FAIL]") {
-			prefix = "║ ❌ "
+			prefix = "! "
 		} else if strings.Contains(line, "[WARN]") {
-			prefix = "║ ⚠️  "
+			prefix = "W "
 		} else if strings.Contains(line, "[SUCCESS]") {
-			prefix = "║ ✅ "
+			prefix = "+ "
 		} else if strings.Contains(line, "[RESUME]") {
-			prefix = "║ 💤 "
+			prefix = "R "
 		} else if strings.Contains(line, "[RESET]") {
-			prefix = "║ 🔧 "
+			prefix = "* "
 		} else if strings.Contains(line, "[SKIP]") {
-			prefix = "║ ⏭️  "
+			prefix = "- "
 		} else if strings.Contains(line, "[CHECK]") {
-			prefix = "║ 🔍 "
+			prefix = "? "
 		}
 
-		// 截断过长的行
-		if len(line) > 62 {
-			line = line[:59] + "..."
-		}
-		sb.WriteString(fmt.Sprintf("%s%-64s║\n", prefix, line))
+		sb.WriteString(fmt.Sprintf("%s%s\n", prefix, line))
 	}
 
-	sb.WriteString("╚══════════════════════════════════════════════════════════════════╝\n")
+	sb.WriteString("\n=================================\n")
 	return sb.String()
 }
 
