@@ -366,3 +366,64 @@ func (c *CLI) CheckAdminAndWarn() bool {
 	}
 	return true
 }
+
+// RunElevated 以管理员权限重新运行当前程序
+// 返回 true 表示已成功请求提升（当前进程应退出）
+// 返回 false 表示提升失败或用户取消
+func RunElevated() bool {
+	exe, err := os.Executable()
+	if err != nil {
+		return false
+	}
+
+	// 构建参数字符串（跳过程序名）
+	args := strings.Join(os.Args[1:], " ")
+
+	// 使用 ShellExecute 以 "runas" 方式运行（触发 UAC 提示）
+	verbPtr, _ := syscall.UTF16PtrFromString("runas")
+	exePtr, _ := syscall.UTF16PtrFromString(exe)
+	argsPtr, _ := syscall.UTF16PtrFromString(args)
+	cwdPtr, _ := syscall.UTF16PtrFromString("")
+
+	shell32 := syscall.NewLazyDLL("shell32.dll")
+	shellExecute := shell32.NewProc("ShellExecuteW")
+
+	ret, _, _ := shellExecute.Call(
+		0,
+		uintptr(unsafe.Pointer(verbPtr)),
+		uintptr(unsafe.Pointer(exePtr)),
+		uintptr(unsafe.Pointer(argsPtr)),
+		uintptr(unsafe.Pointer(cwdPtr)),
+		1, // SW_SHOWNORMAL
+	)
+
+	// ShellExecute 返回值 > 32 表示成功
+	return ret > 32
+}
+
+// EnsureAdmin 确保以管理员权限运行，如果不是则尝试提升
+// 返回 true 表示当前已是管理员或已请求提升（当前进程应退出）
+// 返回 false 表示提升失败
+func EnsureAdmin(cli *CLI) bool {
+	if IsAdmin() {
+		return false // 已是管理员，不需要退出
+	}
+
+	cli.PrintWarning("需要管理员权限才能执行此操作")
+	fmt.Println()
+
+	if cli.AskYesNo("是否自动以管理员身份重新运行", true) {
+		cli.PrintInfo("正在请求管理员权限...")
+		if RunElevated() {
+			cli.PrintSuccess("已在新窗口中以管理员身份启动程序")
+			cli.PrintInfo("请在新窗口中继续操作")
+			return true // 请求提升成功，当前进程应退出
+		}
+		cli.PrintError("提升权限失败，可能是用户取消了 UAC 提示")
+		cli.PrintInfo("请右键程序 → '以管理员身份运行'")
+		return false
+	}
+
+	cli.PrintInfo("请右键程序 → '以管理员身份运行'")
+	return false
+}

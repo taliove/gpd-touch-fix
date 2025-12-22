@@ -96,7 +96,19 @@ func main() {
 		return
 	}
 
-	// 处理服务管理命令
+	// 处理服务管理命令（需要管理员权限）
+	if *install || *uninstall || *start || *stop {
+		if !IsAdmin() {
+			cli := NewCLI()
+			if EnsureAdmin(cli) {
+				// 已在新窗口中以管理员身份启动，当前进程退出
+				return
+			}
+			// 用户取消提升，退出
+			log.Fatalf("此操作需要管理员权限")
+		}
+	}
+
 	if *install {
 		if err := installService(); err != nil {
 			log.Fatalf("安装服务失败: %v", err)
@@ -196,10 +208,17 @@ func main() {
 		return
 	}
 
-	// 检查管理员权限
+	// 检查管理员权限，如果不是管理员则尝试自动提升
 	if !IsAdmin() {
-		log.Println("警告: 未以管理员身份运行！")
-		log.Println("设备操作需要管理员权限。请右键程序 → '以管理员身份运行'")
+		cli := NewCLI()
+		cli.PrintWarning("未以管理员身份运行！")
+		cli.PrintInfo("设备操作需要管理员权限。")
+		fmt.Println()
+		if EnsureAdmin(cli) {
+			// 已在新窗口中以管理员身份启动，当前进程退出
+			return
+		}
+		// 用户取消提升，退出
 		os.Exit(1)
 	}
 
@@ -251,6 +270,19 @@ func runSetupWizard() {
 	fmt.Println("  3. 配置通知选项")
 	fmt.Println("  4. 安装自动化服务")
 	fmt.Println()
+
+	// 检查管理员权限，如果不是管理员则提示自动提升
+	if !IsAdmin() {
+		cli.PrintWarning("部分功能（测试修复、安装服务）需要管理员权限")
+		fmt.Println()
+		if EnsureAdmin(cli) {
+			// 已在新窗口中以管理员身份启动，当前进程退出
+			return
+		}
+		// 用户选择不提升，继续以普通权限运行（部分功能将受限）
+		cli.PrintWarning("将以有限权限模式继续，部分功能可能无法使用")
+		fmt.Println()
+	}
 
 	if !cli.AskYesNo("是否继续", true) {
 		cli.PrintInfo("已取消")
