@@ -17,10 +17,12 @@ import (
 const serviceName = "GPDTouchFix"
 
 type gpdTouchService struct {
-	cfg      *Config
-	logger   *Logger
-	stats    *StatsManager
-	notifier *Notifier
+	cfg          *Config
+	logger       *Logger
+	stats        *StatsManager
+	notifier     *Notifier
+	poller       *WakeEventPoller
+	powerMonitor *PowerMonitor
 }
 
 func (s *gpdTouchService) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (ssec bool, errno uint32) {
@@ -36,6 +38,18 @@ func (s *gpdTouchService) Execute(args []string, r <-chan svc.ChangeRequest, cha
 
 	elog.Info(1, "服务已启动")
 	s.logger.InfoTag(TagService, "服务已启动")
+
+	// 检查是否是 Modern Standby 系统
+	sleepState := GetSystemSleepState()
+	s.logger.InfoTag(TagService, "系统睡眠状态: %s", sleepState)
+	elog.Info(1, fmt.Sprintf("系统睡眠状态: %s", sleepState))
+
+	// 如果是 Modern Standby，启动轮询器作为备用检测方案
+	if IsModernStandbySupported() {
+		s.logger.InfoTag(TagService, "检测到 Modern Standby，启动设备状态轮询")
+		s.startPolling(elog)
+	}
+
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 
 	// 主循环
@@ -48,6 +62,10 @@ func (s *gpdTouchService) Execute(args []string, r <-chan svc.ChangeRequest, cha
 			case svc.Stop, svc.Shutdown:
 				elog.Info(1, "服务正在停止")
 				s.logger.InfoTag(TagService, "服务正在停止")
+				// 停止轮询器
+				if s.poller != nil {
+					s.poller.Stop()
+				}
 				changes <- svc.Status{State: svc.StopPending}
 				return
 			case svc.Pause:
@@ -159,6 +177,75 @@ func (s *gpdTouchService) handlePowerEvent(elog *eventlog.Log, eventType uint32)
 	s.stats.RecordReset(true, "修复成功")
 
 	// 发送成功通知
+	s.notifier.NotifyResumeResult(true, false, deviceName, nil)
+}
+
+// startPolling 启动设备状态轮询（用于 Modern Standby 系统）
+func (s *gpdTouchService) startPolling(elog *eventlog.Log) {
+	s.poller = NewWakeEventPoller(s.cfg.DeviceInstanceID, func() {
+		s.handlePolledWake(elog)
+	}, s.logger)
+	s.poller.Start()
+	s.logger.InfoTag(TagService, "设备状态轮询已启动 (间隔: 10秒)")
+	elog.Info(1, "Modern Standby 设备状态轮询已启动")
+}
+
+// handlePolledWake 处理轮询检测到的唤醒/设备错误事件
+func (s *gpdTouchService) handlePolledWake(elog *eventlog.Log) {
+	s.logger.InfoTag(TagResume, "轮询检测到设备异常，开始修复")
+	elog.Info(1, "轮询检测到设备异常，开始修复")
+
+	// 记录唤醒事件
+	s.stats.RecordResume()
+
+	// 等待系统稳定
+	delaySeconds := s.cfg.ResumeDelaySeconds
+	if delaySeconds <= 0 {
+		delaySeconds = 3
+	}
+	s.logger.InfoTag(TagResume, "等待系统稳定 (%d 秒)...", delaySeconds)
+	time.Sleep(time.Duration(delaySeconds) * time.Second)
+
+	// 创建设备管理器
+	dm := NewDeviceManager(s.cfg.DeviceInstanceID)
+	deviceName := s.cfg.DeviceName
+	if deviceName == "" {
+		deviceName = s.cfg.DeviceInstanceID
+	}
+
+	// 再次检查状态，可能在等待期间已经恢复
+	status, err := dm.GetStatus()
+	if err == nil && strings.EqualFold(status, "OK") {
+		s.logger.InfoTag(TagSkip, "等待后设备状态已恢复正常，跳过修复")
+		elog.Info(1, "等待后设备状态已恢复正常，跳过修复")
+		s.stats.RecordSkip()
+		return
+	}
+
+	// 执行设备重置
+	s.logger.InfoTag(TagReset, "开始修复设备: %s", deviceName)
+	elog.Info(1, fmt.Sprintf("开始修复设备: %s", deviceName))
+
+	waitDuration := time.Duration(s.cfg.WaitSeconds) * time.Second
+	if err := dm.Reset(waitDuration); err != nil {
+		s.logger.ErrorTag(TagFail, "设备修复失败: %v", err)
+		elog.Error(1, fmt.Sprintf("设备重置失败: %v", err))
+		s.stats.RecordReset(false, fmt.Sprintf("失败: %v", err))
+		s.notifier.NotifyResumeResult(false, false, deviceName, err)
+		return
+	}
+
+	// 验证修复结果
+	finalStatus, err := dm.GetStatus()
+	if err != nil {
+		s.logger.WarningTag(TagCheck, "无法验证修复结果: %v", err)
+	} else {
+		s.logger.InfoTag(TagCheck, "修复后设备状态: %s", finalStatus)
+	}
+
+	s.logger.InfoTag(TagSuccess, "触屏设备修复成功")
+	elog.Info(1, "触屏设备修复成功")
+	s.stats.RecordReset(true, "修复成功")
 	s.notifier.NotifyResumeResult(true, false, deviceName, nil)
 }
 
