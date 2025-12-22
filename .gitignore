@@ -1,0 +1,44 @@
+# Ignore Go build artifacts
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Ignore Go vendor directory
+vendor/
+
+# Ignore IDE/editor specific files
+.idea/
+*.vscode/
+*.swp
+*.swo
+
+# Ignore logs
+*.log
+logs/
+
+# Ignore configuration files
+config.json
+
+# Ignore temporary files
+*.tmp
+*.temp
+*.bak
+*.old
+
+# Ignore coverage files
+*.cover
+*.cov
+*.prof
+
+# Ignore dependency files
+*.mod
+*.sum
+
+# Ignore other system files
+.DS_Store
+Thumbs.db
