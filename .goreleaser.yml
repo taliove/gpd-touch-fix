@@ -99,7 +99,7 @@ changelog:
 # GitHub Release 配置
 release:
   github:
-    owner: gpd-touch
+    owner: taliove
     name: gpd-touch-fix
   
   # Release 名称模板
