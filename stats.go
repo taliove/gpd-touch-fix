@@ -1,3 +1,4 @@
+// Package main provides statistics tracking and reporting for device repairs.
 package main
 
 import (

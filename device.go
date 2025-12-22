@@ -1,3 +1,4 @@
+// Package main provides device management functionality for disabling and enabling devices.
 package main
 
 import (

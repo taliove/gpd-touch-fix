@@ -1,3 +1,4 @@
+// Package main provides version information and build metadata.
 package main
 
 import (

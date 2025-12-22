@@ -1,3 +1,5 @@
+// Package main provides command-line interface utilities and interactive dialogs.
+// It handles colored output, user input, device selection, and progress indicators.
 package main
 
 import (

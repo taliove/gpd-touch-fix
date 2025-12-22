@@ -1,3 +1,4 @@
+// Package main provides Windows toast notification functionality for user notifications.
 package main
 
 import (

@@ -1,3 +1,4 @@
+// Package main provides Windows service integration for background device monitoring and automatic repair.
 package main
 
 import (

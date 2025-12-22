@@ -1,3 +1,4 @@
+// Package main provides logging functionality for application events and debugging.
 package main
 
 import (

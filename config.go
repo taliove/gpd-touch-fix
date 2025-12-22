@@ -1,3 +1,4 @@
+// Package main provides configuration management for device settings and preferences.
 package main
 
 import (

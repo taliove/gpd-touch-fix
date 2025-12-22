@@ -1,3 +1,5 @@
+// Package main provides the command-line interface and service orchestration for GPD Touch Fix.
+// It handles device detection, repair automation, Windows service integration, and configuration management.
 package main
 
 import (
@@ -34,6 +36,7 @@ func main() {
 	uninstall := flag.Bool("uninstall", false, "卸载 Windows 服务")
 	start := flag.Bool("start", false, "启动 Windows 服务")
 	stop := flag.Bool("stop", false, "停止 Windows 服务")
+	_ = flag.Bool("service", false, "以服务模式运行（由 Windows 服务管理器调用，内部使用）")
 
 	// 新增状态和日志命令
 	showStatus := flag.Bool("status", false, "显示服务状态和统计信息")

@@ -1,3 +1,5 @@
+// Package main provides device detection and identification functionality.
+// It scans for I2C HID devices and identifies problematic touch devices.
 package main
 
 import (
