@@ -50,7 +50,7 @@ archives:
       {{- else }}{{ .Os }}-{{ .Arch }}{{ end }}
     
     # 归档格式
-    format: zip
+    formats: [zip]
     
     # 包含的文件
     files:
