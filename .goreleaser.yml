@@ -121,7 +121,6 @@ release:
     ### 📦 下载说明
     
     - **64位系统**: 下载 `gpd-touch-fix-{{.Version}}-windows-x64.zip`
-    - **32位系统**: 下载 `gpd-touch-fix-{{.Version}}-windows-x86.zip`
     
     ### 🚀 快速开始
     
@@ -129,7 +128,7 @@ release:
     2. 右键 `gpd-touch-fix.exe` 选择"以管理员身份运行"
     3. 执行安装向导：`.\gpd-touch-fix.exe --setup`
     
-    完整文档请参阅 [README.md](https://github.com/gpd-touch/gpd-touch-fix#readme)
+    完整文档请参阅 [README.md](https://github.com/taliove/gpd-touch-fix#readme)
     
   footer: |
     ---
@@ -143,7 +142,7 @@ release:
     (Get-FileHash .\gpd-touch-fix-{{.Version}}-windows-x64.zip).Hash -eq (Get-Content .\checksums.txt | Select-String "windows-x64.zip")
     ```
     
-    **完整更新日志**: [CHANGELOG.md](https://github.com/gpd-touch/gpd-touch-fix/blob/main/CHANGELOG.md)
+    **完整更新日志**: [CHANGELOG.md](https://github.com/taliove/gpd-touch-fix/blob/main/CHANGELOG.md)
 
 # 发布前验证
 announce:
