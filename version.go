@@ -9,7 +9,7 @@ import (
 
 var (
 	// 这些变量会在编译时通过 -ldflags 注入
-	Version   = "dev"
+	Version   = "1.0.1"
 	GitCommit = "unknown"
 	BuildTime = "unknown"
 	GoVersion = runtime.Version()
