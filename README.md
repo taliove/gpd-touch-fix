@@ -93,4 +93,4 @@ MIT License - 详见 [LICENSE](LICENSE)
 
 ---
 
-** 如果这个工具帮到你了，请给个 Star！**
+**如果这个工具帮到你了，请给个 Star！**
