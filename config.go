@@ -45,14 +45,14 @@ func DefaultConfig() *Config {
 		AutoDetect:         true,
 		LogLevel:           "INFO",
 		LogDir:             "",
-		CheckBeforeReset:   true,  // 默认先检查再修复
-		ResumeDelaySeconds: 3,     // 默认等待3秒
-		LogAllEvents:       true,  // 默认记录所有事件
-		EnableNotification: true,  // 默认启用通知
-		MaxLogDays:         30,    // 默认保留30天
-		MaxRetryCount:      10,    // 默认最多连续重试10次
-		RetryIntervalSecs:  60,    // 默认60秒基础重试间隔
-		MaxRetryInterval:   600,   // 默认最大10分钟重试间隔
+		CheckBeforeReset:   true, // 默认先检查再修复
+		ResumeDelaySeconds: 3,    // 默认等待3秒
+		LogAllEvents:       true, // 默认记录所有事件
+		EnableNotification: true, // 默认启用通知
+		MaxLogDays:         30,   // 默认保留30天
+		MaxRetryCount:      10,   // 默认最多连续重试10次
+		RetryIntervalSecs:  60,   // 默认60秒基础重试间隔
+		MaxRetryInterval:   600,  // 默认最大10分钟重试间隔
 	}
 }
 
