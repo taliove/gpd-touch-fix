@@ -55,10 +55,15 @@ var (
 	powrprof                               = windows.NewLazySystemDLL("powrprof.dll")
 	procPowerSettingRegisterNotification   = powrprof.NewProc("PowerSettingRegisterNotification")
 	procPowerSettingUnregisterNotification = powrprof.NewProc("PowerSettingUnregisterNotification")
+	procPowerReadACValue                   = powrprof.NewProc("PowerReadACValue")
 
 	user32                                 = windows.NewLazySystemDLL("user32.dll")
 	procRegisterPowerSettingNotification   = user32.NewProc("RegisterPowerSettingNotification")
 	procUnregisterPowerSettingNotification = user32.NewProc("UnregisterPowerSettingNotification")
+	procGetLastInputInfo                   = user32.NewProc("GetLastInputInfo")
+
+	kernel32Power      = windows.NewLazySystemDLL("kernel32.dll")
+	procGetTickCount64 = kernel32Power.NewProc("GetTickCount64")
 )
 
 // PowerBroadcastSetting 结构体用于解析电源广播设置
@@ -199,28 +204,63 @@ func GetPowerSettingName(guid windows.GUID) string {
 	}
 }
 
-// WaitForWakeEvent 等待唤醒事件（轮询模式，作为备用方案）
-// 这是一个简单的轮询实现，当其他方法不起作用时使用
+// WakeEventPoller 设备状态轮询器（备用方案）
+// 用于 Modern Standby 系统中，当电源事件不可靠时作为补充检测
 type WakeEventPoller struct {
-	callback       func()
-	stopChan       chan struct{}
-	pollInterval   time.Duration
-	retryInterval  time.Duration // 修复失败后的重试间隔
-	lastStatus     string
-	lastRepairTime time.Time // 上次修复时间
-	deviceID       string
-	logger         *Logger
+	callback          func() bool // 修复回调，返回是否成功
+	stopChan          chan struct{}
+	pauseChan         chan bool // 暂停/恢复控制
+	pollInterval      time.Duration
+	baseRetryInterval time.Duration // 基础重试间隔
+	maxRetryInterval  time.Duration // 最大重试间隔（退避上限）
+	maxRetryCount     int           // 最大连续失败次数（0=无限制）
+	lastStatus        string
+	pendingRepair     bool          // 设备在睡眠/长空闲期间变异常，等待唤醒后再修复
+	lastRepairTime    time.Time     // 上次修复时间
+	consecutiveFails  int           // 连续失败次数
+	currentInterval   time.Duration // 当前重试间隔（退避用）
+	deviceID          string
+	logger            *Logger
+	paused            bool // 是否暂停
+	mu                sync.Mutex
+}
+
+// PollerConfig 轮询器配置
+type PollerConfig struct {
+	BaseRetryInterval time.Duration
+	MaxRetryInterval  time.Duration
+	MaxRetryCount     int
 }
 
 // NewWakeEventPoller 创建唤醒事件轮询器
-func NewWakeEventPoller(deviceID string, callback func(), logger *Logger) *WakeEventPoller {
+func NewWakeEventPoller(deviceID string, callback func() bool, logger *Logger, cfg *PollerConfig) *WakeEventPoller {
+	baseInterval := 60 * time.Second
+	maxInterval := 10 * time.Minute
+	maxRetry := 10
+
+	if cfg != nil {
+		if cfg.BaseRetryInterval > 0 {
+			baseInterval = cfg.BaseRetryInterval
+		}
+		if cfg.MaxRetryInterval > 0 {
+			maxInterval = cfg.MaxRetryInterval
+		}
+		if cfg.MaxRetryCount >= 0 {
+			maxRetry = cfg.MaxRetryCount
+		}
+	}
+
 	return &WakeEventPoller{
-		callback:      callback,
-		stopChan:      make(chan struct{}),
-		pollInterval:  10 * time.Second,
-		retryInterval: 60 * time.Second, // 修复后至少等60秒再重试
-		deviceID:      deviceID,
-		logger:        logger,
+		callback:          callback,
+		stopChan:          make(chan struct{}),
+		pauseChan:         make(chan bool, 1),
+		pollInterval:      10 * time.Second,
+		baseRetryInterval: baseInterval,
+		maxRetryInterval:  maxInterval,
+		maxRetryCount:     maxRetry,
+		currentInterval:   baseInterval,
+		deviceID:          deviceID,
+		logger:            logger,
 	}
 }
 
@@ -234,19 +274,130 @@ func (p *WakeEventPoller) Stop() {
 	close(p.stopChan)
 }
 
+// Pause 暂停轮询（系统睡眠时调用）
+func (p *WakeEventPoller) Pause() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if !p.paused {
+		p.paused = true
+		select {
+		case p.pauseChan <- true:
+		default:
+		}
+		p.logger.InfoTag(TagService, "设备状态轮询已暂停")
+	}
+}
+
+// Resume 恢复轮询（系统唤醒时调用）
+func (p *WakeEventPoller) Resume() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.paused {
+		p.paused = false
+		select {
+		case p.pauseChan <- false:
+		default:
+		}
+		p.logger.InfoTag(TagService, "设备状态轮询已恢复")
+
+		// 如果有待处理的修复（在睡眠期间设备变异常），立即检查并处理
+		if p.pendingRepair {
+			p.logger.InfoTag(TagResume, "检测到待唤醒修复标记，立即检查设备状态")
+			// 异步处理，避免阻塞Resume调用
+			go func() {
+				// 短暂等待系统稳定
+				time.Sleep(2 * time.Second)
+
+				dm := NewDeviceManager(p.deviceID)
+				status, err := dm.GetStatus()
+				if err == nil && status != "OK" {
+					p.logger.InfoTag(TagResume, "唤醒后设备仍异常 (状态: %s)，立即执行修复", status)
+					if p.callback != nil {
+						success := p.callback()
+						if success {
+							p.pendingRepair = false
+							p.ResetRetryState()
+						}
+					}
+				} else if err == nil && status == "OK" {
+					p.logger.InfoTag(TagResume, "唤醒后设备状态正常，清除待修复标记")
+					p.pendingRepair = false
+				}
+			}()
+		}
+	}
+}
+
+// IsPaused 检查是否已暂停
+func (p *WakeEventPoller) IsPaused() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.paused
+}
+
+// ResetRetryState 重置重试状态（修复成功后调用）
+func (p *WakeEventPoller) ResetRetryState() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.consecutiveFails = 0
+	p.currentInterval = p.baseRetryInterval
+}
+
+// GetConsecutiveFails 获取连续失败次数
+func (p *WakeEventPoller) GetConsecutiveFails() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.consecutiveFails
+}
+
+// incrementFails 增加失败计数并更新退避间隔
+func (p *WakeEventPoller) incrementFails() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.consecutiveFails++
+
+	// 检查是否超过最大重试次数
+	if p.maxRetryCount > 0 && p.consecutiveFails >= p.maxRetryCount {
+		p.logger.WarningTag(TagFail, "连续失败 %d 次，已达到最大重试次数，停止自动修复", p.consecutiveFails)
+		return false // 返回 false 表示应该停止重试
+	}
+
+	// 指数退避：每次失败后间隔翻倍，但不超过最大值
+	p.currentInterval = p.currentInterval * 2
+	if p.currentInterval > p.maxRetryInterval {
+		p.currentInterval = p.maxRetryInterval
+	}
+
+	p.logger.InfoTag(TagService, "连续失败 %d 次，下次重试间隔: %v", p.consecutiveFails, p.currentInterval)
+	return true
+}
+
+// getCurrentInterval 获取当前重试间隔
+func (p *WakeEventPoller) getCurrentInterval() time.Duration {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.currentInterval
+}
+
 // poll 轮询设备状态
 func (p *WakeEventPoller) poll() {
 	dm := NewDeviceManager(p.deviceID)
 
-	// 获取初始状态，如果已经是 Error 则立即尝试修复
+	// 获取初始状态
 	status, err := dm.GetStatus()
 	if err == nil {
 		p.lastStatus = status
 		if status != "OK" {
 			p.logger.InfoTag(TagResume, "服务启动时检测到设备异常状态: %s，将尝试修复", status)
 			if p.callback != nil {
-				p.callback()
+				success := p.callback()
 				p.lastRepairTime = time.Now()
+				if success {
+					p.ResetRetryState()
+				} else {
+					p.incrementFails()
+				}
 			}
 		} else {
 			p.logger.InfoTag(TagCheck, "设备初始状态正常: %s", status)
@@ -256,28 +407,104 @@ func (p *WakeEventPoller) poll() {
 	ticker := time.NewTicker(p.pollInterval)
 	defer ticker.Stop()
 
+	exceededMaxRetry := false // 是否已超过最大重试次数
+
 	for {
 		select {
 		case <-p.stopChan:
 			return
+
+		case paused := <-p.pauseChan:
+			// 处理暂停/恢复
+			if paused {
+				// 等待恢复信号
+				for {
+					select {
+					case <-p.stopChan:
+						return
+					case resumed := <-p.pauseChan:
+						if !resumed {
+							break // 跳出内层 for 循环
+						}
+					}
+				}
+			}
+			// 恢复后继续下一次循环
+			continue
+
 		case <-ticker.C:
+			// 如果已暂停，跳过本次轮询
+			if p.IsPaused() {
+				continue
+			}
+
+			// 如果已超过最大重试次数，只检查状态不再触发修复
+			if exceededMaxRetry {
+				status, err := dm.GetStatus()
+				if err == nil && status == "OK" {
+					p.logger.InfoTag(TagCheck, "设备状态已恢复正常: %s", status)
+					p.ResetRetryState()
+					exceededMaxRetry = false
+					p.lastStatus = status
+				}
+				continue
+			}
+
 			status, err := dm.GetStatus()
 			if err != nil {
 				continue
 			}
 
+			// 状态恢复正常，清理“待唤醒修复”标记
+			if status == "OK" {
+				p.pendingRepair = false
+			}
+
 			shouldRepair := false
 			reason := ""
 
-			// 情况1：状态从 OK 变为 Error（刚从睡眠恢复导致）
+			idleSec := -1
+			if idleMs, err := GetIdleTime(); err == nil {
+				idleSec = int(idleMs / 1000)
+			}
+
+			// 情况1：状态从 OK 变为 Error
+			// 关键：如果系统已经长时间无输入（合盖/睡眠很常见），不要在睡眠期间修复；标记为待唤醒修复。
 			if status != "OK" && p.lastStatus == "OK" {
+				if idleSec < 0 || idleSec >= 300 {
+					p.logger.InfoTag(TagCheck, "检测到设备状态变化: %s -> %s，但系统长时间空闲（%d秒），标记待唤醒修复", p.lastStatus, status, idleSec)
+					p.pendingRepair = true
+					p.lastStatus = status
+					continue
+				}
+				p.logger.InfoTag(TagCheck, "检测到设备状态变化: %s -> %s，且系统活跃（空闲%d秒），立即修复", p.lastStatus, status, idleSec)
 				shouldRepair = true
 				reason = "状态变化"
+				p.pendingRepair = false
+				p.ResetRetryState()
 			}
 
 			// 情况2：设备一直是 Error 状态，且距离上次修复已经足够久
 			if status != "OK" && p.lastStatus != "OK" {
-				if time.Since(p.lastRepairTime) > p.retryInterval {
+				// 如果之前在长空闲/睡眠期间变异常，这里优先等待“唤醒后活跃”再立刻补修复
+				if p.pendingRepair {
+					if idleSec >= 0 && idleSec <= 60 {
+						shouldRepair = true
+						reason = "唤醒后补修复"
+						p.pendingRepair = false
+						p.ResetRetryState()
+					} else {
+						continue
+					}
+				} else {
+					// 常规持续异常处理：仅在系统活跃时重试，避免睡眠中不断重试
+					if idleSec >= 0 && idleSec > 60 {
+						continue
+					}
+				}
+
+				interval := p.getCurrentInterval()
+				if time.Since(p.lastRepairTime) > interval {
 					shouldRepair = true
 					reason = "持续异常"
 				}
@@ -286,8 +513,15 @@ func (p *WakeEventPoller) poll() {
 			if shouldRepair {
 				p.logger.InfoTag(TagResume, "检测到设备状态异常 (轮询-%s): %s -> %s", reason, p.lastStatus, status)
 				if p.callback != nil {
-					p.callback()
+					success := p.callback()
 					p.lastRepairTime = time.Now()
+					if success {
+						p.ResetRetryState()
+					} else {
+						if !p.incrementFails() {
+							exceededMaxRetry = true
+						}
+					}
 				}
 			}
 
@@ -333,4 +567,59 @@ func GetSystemSleepState() string {
 		return "Modern Standby (S0 Low Power Idle)"
 	}
 	return "Traditional Sleep (S3)"
+}
+
+// LASTINPUTINFO 结构体用于 GetLastInputInfo
+type LASTINPUTINFO struct {
+	cbSize uint32
+	dwTime uint32
+}
+
+// GetIdleTime 获取系统空闲时间（毫秒）
+// 返回自上次用户输入（键盘/鼠标）以来的毫秒数
+func GetIdleTime() (uint32, error) {
+	var lii LASTINPUTINFO
+	lii.cbSize = uint32(unsafe.Sizeof(lii))
+
+	ret, _, err := procGetLastInputInfo.Call(uintptr(unsafe.Pointer(&lii)))
+	if ret == 0 {
+		return 0, err
+	}
+
+	// 获取当前 tick count
+	tickCount, _, _ := procGetTickCount64.Call()
+
+	// 计算空闲时间
+	idleTime := uint32(tickCount) - lii.dwTime
+	return idleTime, nil
+}
+
+// IsSystemLikelyAsleep 判断系统是否可能处于睡眠/休眠状态
+// 在 Modern Standby 模式下，系统技术上仍在运行，但用户无交互
+// 通过检测空闲时间来判断
+func IsSystemLikelyAsleep(minIdleMinutes int) bool {
+	if minIdleMinutes <= 0 {
+		minIdleMinutes = 5 // 默认5分钟无操作视为睡眠
+	}
+
+	idleMs, err := GetIdleTime()
+	if err != nil {
+		return false // 无法获取，假设未睡眠
+	}
+
+	// 转换为分钟
+	idleMinutes := int(idleMs / 1000 / 60)
+	return idleMinutes >= minIdleMinutes
+}
+
+// IsUserSessionLocked 检查用户会话是否被锁定
+// 注意：这在服务模式下可能不完全可靠
+func IsUserSessionLocked() bool {
+	// 通过检查空闲时间来间接判断
+	// 如果空闲超过1分钟，很可能是锁屏或睡眠状态
+	idleMs, err := GetIdleTime()
+	if err != nil {
+		return false
+	}
+	return idleMs > 60*1000 // 1分钟无输入
 }

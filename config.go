@@ -28,6 +28,11 @@ type Config struct {
 
 	// 日志管理
 	MaxLogDays int `json:"max_log_days,omitempty"` // 日志保留天数
+
+	// 修复重试配置
+	MaxRetryCount     int `json:"max_retry_count,omitempty"`     // 连续失败最大重试次数（0=无限制）
+	RetryIntervalSecs int `json:"retry_interval_secs,omitempty"` // 基础重试间隔（秒）
+	MaxRetryInterval  int `json:"max_retry_interval,omitempty"`  // 最大重试间隔（秒，用于退避）
 }
 
 // DefaultConfig 返回默认配置
@@ -40,11 +45,14 @@ func DefaultConfig() *Config {
 		AutoDetect:         true,
 		LogLevel:           "INFO",
 		LogDir:             "",
-		CheckBeforeReset:   true, // 默认先检查再修复
-		ResumeDelaySeconds: 3,    // 默认等待3秒
-		LogAllEvents:       true, // 默认记录所有事件
-		EnableNotification: true, // 默认启用通知
-		MaxLogDays:         30,   // 默认保留30天
+		CheckBeforeReset:   true,  // 默认先检查再修复
+		ResumeDelaySeconds: 3,     // 默认等待3秒
+		LogAllEvents:       true,  // 默认记录所有事件
+		EnableNotification: true,  // 默认启用通知
+		MaxLogDays:         30,    // 默认保留30天
+		MaxRetryCount:      10,    // 默认最多连续重试10次
+		RetryIntervalSecs:  60,    // 默认60秒基础重试间隔
+		MaxRetryInterval:   600,   // 默认最大10分钟重试间隔
 	}
 }
 

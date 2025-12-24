@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os/exec"
@@ -98,8 +99,17 @@ func (dm *DeviceManager) Reset(waitDuration time.Duration) error {
 // runPowerShell 执行 PowerShell 命令
 func runPowerShell(body string) (string, error) {
 	full := fmt.Sprintf("[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $ErrorActionPreference='Stop'; %s", body)
-	cmd := exec.Command("powershell", "-NoProfile", "-Command", full)
+
+	// 防止 Disable/Enable-PnpDevice 偶发卡死导致服务长时间阻塞
+	const timeout = 90 * time.Second
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "powershell", "-NoProfile", "-Command", full)
 	out, err := cmd.CombinedOutput()
+	if ctx.Err() == context.DeadlineExceeded {
+		return "", fmt.Errorf("PowerShell 执行超时(%v): %s", timeout, strings.TrimSpace(string(out)))
+	}
 	if err != nil {
 		return "", fmt.Errorf("PowerShell 执行失败: %w: %s", err, strings.TrimSpace(string(out)))
 	}

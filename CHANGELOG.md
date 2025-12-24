@@ -7,6 +7,16 @@
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Fixed
+
+### Removed
+
+## [1.0.0] - 2025-12-22
+
+### Added
 - Initial project setup and structure
 - Device detection and management functionality
 - Windows service integration for automatic recovery
@@ -16,16 +26,6 @@
 - Comprehensive logging system
 - CLI interface with setup wizard
 - Unit tests with 20+ test cases
-
-### Changed
-
-### Fixed
-
-### Removed
-
-## [1.0.0] - 2024-12-22
-
-### Added
 - 🔍 **Smart Hardware Detection** - Automatically scan and identify I2C HID touch devices
 - 🎯 **One-Click Fix** - Simple execution to fix touchpad issues
 - 🤖 **Intelligent Detection** - Check device status after wake-up, skip fix if normal
@@ -36,6 +36,12 @@
 - ⚙️ **Configuration Management** - Support multiple devices with auto-detection and fallback
 - ✅ **Complete Testing** - 20+ unit tests ensuring code quality
 - 🎨 **Colored Terminal** - User-friendly interactive interface
+
+### Changed
+
+### Fixed
+
+### Removed
 
 ## [0.1.0] - 2024-12-01
 

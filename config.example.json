@@ -1,4 +1,15 @@
 {
   "device_instance_id": "ACPI\\VEN_XXXX&DEV_YYYY&SUBSYS_ZZZZ",
-  "wait_seconds": 2
+  "device_name": "I2C HID Device",
+  "wait_seconds": 2,
+  "auto_detect": true,
+  "log_level": "INFO",
+  "check_before_reset": true,
+  "resume_delay_seconds": 3,
+  "log_all_events": true,
+  "enable_notification": true,
+  "max_log_days": 30,
+  "max_retry_count": 10,
+  "retry_interval_secs": 60,
+  "max_retry_interval": 600
 }

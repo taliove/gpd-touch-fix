@@ -48,6 +48,15 @@ func (s *gpdTouchService) Execute(args []string, r <-chan svc.ChangeRequest, cha
 	if IsModernStandbySupported() {
 		s.logger.InfoTag(TagService, "检测到 Modern Standby，启动设备状态轮询")
 		s.startPolling(elog)
+
+		// 同时启动电源监控器来监听显示器状态变化
+		s.powerMonitor = NewPowerMonitor(func() {
+			s.logger.InfoTag(TagService, "检测到显示器唤醒事件")
+			if s.poller != nil {
+				s.poller.Resume()
+			}
+		})
+		s.logger.InfoTag(TagService, "电源监控器已启动，监听显示器状态变化")
 	}
 
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
@@ -65,6 +74,11 @@ func (s *gpdTouchService) Execute(args []string, r <-chan svc.ChangeRequest, cha
 				// 停止轮询器
 				if s.poller != nil {
 					s.poller.Stop()
+				}
+				// 停止电源监控器
+				if s.powerMonitor != nil {
+					// PowerMonitor 没有显式停止方法，它会在程序退出时自动清理
+					s.logger.InfoTag(TagService, "电源监控器已停止")
 				}
 				changes <- svc.Status{State: svc.StopPending}
 				return
@@ -84,16 +98,43 @@ func (s *gpdTouchService) Execute(args []string, r <-chan svc.ChangeRequest, cha
 
 // handlePowerEvent 处理电源事件
 func (s *gpdTouchService) handlePowerEvent(elog *eventlog.Log, eventType uint32) {
-	// 如果是从睡眠恢复 (ResumeAutomatic = 18, ResumeSuspend = 7)
-	if eventType != 18 && eventType != 7 {
+	// 记录所有电源事件，方便调试
+	eventName := s.getPowerEventName(eventType)
+	s.logger.InfoTag(TagService, "收到电源事件: %s (类型: %d/0x%X)", eventName, eventType, eventType)
+
+	// 如果有电源监控器，让它也处理这个事件
+	if s.powerMonitor != nil {
+		// 注意：这里假设 eventData 为 0，因为 Windows 服务 API 传递的是简化的事件
+		// PowerMonitor 会处理传统电源事件和显示器状态变化
+		if s.powerMonitor.HandlePowerBroadcast(eventType, 0) {
+			// PowerMonitor 已处理，返回
+			return
+		}
+	}
+
+	// 处理唤醒相关事件:
+	// - ResumeAutomatic (18): 自动恢复
+	// - ResumeSuspend (7): 从挂起恢复
+	// - OEM事件 (10): 可能是特定硬件的唤醒信号
+	isResumeEvent := (eventType == 18 || eventType == 7)
+	isOemEvent := (eventType == 10)
+
+	if !isResumeEvent && !isOemEvent {
 		return
 	}
 
-	eventName := "ResumeAutomatic"
-	if eventType == 7 {
-		eventName = "ResumeSuspend"
+	// 对于OEM事件，如果有轮询器，触发它立即检测而不是自己处理
+	if isOemEvent {
+		if s.poller != nil {
+			// 恢复轮询器（如果被暂停），并重置其重试状态
+			s.poller.Resume()
+			s.poller.ResetRetryState()
+			s.logger.InfoTag(TagService, "收到OEM事件，已触发设备状态检测")
+		}
+		return
 	}
 
+	// 确认的唤醒事件，执行完整修复流程
 	elog.Info(1, fmt.Sprintf("检测到系统从睡眠恢复 (事件: %s)", eventName))
 	s.logger.InfoTag(TagResume, "系统从睡眠唤醒 (事件类型: %s)", eventName)
 
@@ -166,32 +207,52 @@ func (s *gpdTouchService) handlePowerEvent(elog *eventlog.Log, eventType uint32)
 	finalStatus, err := dm.GetStatus()
 	if err != nil {
 		s.logger.WarningTag(TagCheck, "无法验证修复结果: %v", err)
-	} else {
-		s.logger.InfoTag(TagCheck, "修复后设备状态: %s", finalStatus)
+		s.stats.RecordReset(false, "无法验证修复结果")
+		return
 	}
 
-	s.logger.InfoTag(TagSuccess, "触屏设备修复成功")
-	elog.Info(1, "触屏设备修复成功")
+	s.logger.InfoTag(TagCheck, "修复后设备状态: %s", finalStatus)
 
-	// 记录成功
-	s.stats.RecordReset(true, "修复成功")
-
-	// 发送成功通知
-	s.notifier.NotifyResumeResult(true, false, deviceName, nil)
+	// 根据实际状态判断是否成功
+	if strings.EqualFold(finalStatus, "OK") {
+		s.logger.InfoTag(TagSuccess, "触屏设备修复成功")
+		elog.Info(1, "触屏设备修复成功")
+		s.stats.RecordReset(true, "修复成功")
+		s.notifier.NotifyResumeResult(true, false, deviceName, nil)
+	} else {
+		s.logger.WarningTag(TagFail, "修复后设备仍处于异常状态: %s", finalStatus)
+		elog.Warning(1, fmt.Sprintf("修复后设备仍处于异常状态: %s", finalStatus))
+		s.stats.RecordReset(false, fmt.Sprintf("修复后状态: %s", finalStatus))
+		s.notifier.NotifyResumeResult(false, false, deviceName, fmt.Errorf("设备状态: %s", finalStatus))
+	}
 }
 
 // startPolling 启动设备状态轮询（用于 Modern Standby 系统）
 func (s *gpdTouchService) startPolling(elog *eventlog.Log) {
-	s.poller = NewWakeEventPoller(s.cfg.DeviceInstanceID, func() {
-		s.handlePolledWake(elog)
-	}, s.logger)
+	// 配置轮询器参数
+	pollerCfg := &PollerConfig{
+		BaseRetryInterval: time.Duration(s.cfg.RetryIntervalSecs) * time.Second,
+		MaxRetryInterval:  time.Duration(s.cfg.MaxRetryInterval) * time.Second,
+		MaxRetryCount:     s.cfg.MaxRetryCount,
+	}
+	if pollerCfg.BaseRetryInterval <= 0 {
+		pollerCfg.BaseRetryInterval = 60 * time.Second
+	}
+	if pollerCfg.MaxRetryInterval <= 0 {
+		pollerCfg.MaxRetryInterval = 10 * time.Minute
+	}
+
+	s.poller = NewWakeEventPoller(s.cfg.DeviceInstanceID, func() bool {
+		return s.handlePolledWake(elog)
+	}, s.logger, pollerCfg)
 	s.poller.Start()
 	s.logger.InfoTag(TagService, "设备状态轮询已启动 (间隔: 10秒)")
 	elog.Info(1, "Modern Standby 设备状态轮询已启动")
 }
 
 // handlePolledWake 处理轮询检测到的唤醒/设备错误事件
-func (s *gpdTouchService) handlePolledWake(elog *eventlog.Log) {
+// 返回 true 表示修复成功，false 表示失败
+func (s *gpdTouchService) handlePolledWake(elog *eventlog.Log) bool {
 	s.logger.InfoTag(TagResume, "轮询检测到设备异常，开始修复")
 	elog.Info(1, "轮询检测到设备异常，开始修复")
 
@@ -219,7 +280,7 @@ func (s *gpdTouchService) handlePolledWake(elog *eventlog.Log) {
 		s.logger.InfoTag(TagSkip, "等待后设备状态已恢复正常，跳过修复")
 		elog.Info(1, "等待后设备状态已恢复正常，跳过修复")
 		s.stats.RecordSkip()
-		return
+		return true // 设备已正常，视为成功
 	}
 
 	// 执行设备重置
@@ -232,21 +293,35 @@ func (s *gpdTouchService) handlePolledWake(elog *eventlog.Log) {
 		elog.Error(1, fmt.Sprintf("设备重置失败: %v", err))
 		s.stats.RecordReset(false, fmt.Sprintf("失败: %v", err))
 		s.notifier.NotifyResumeResult(false, false, deviceName, err)
-		return
+		return false
 	}
 
 	// 验证修复结果
 	finalStatus, err := dm.GetStatus()
 	if err != nil {
 		s.logger.WarningTag(TagCheck, "无法验证修复结果: %v", err)
-	} else {
-		s.logger.InfoTag(TagCheck, "修复后设备状态: %s", finalStatus)
+		// 无法验证，不确定是否成功，视为失败
+		s.stats.RecordReset(false, "无法验证修复结果")
+		return false
 	}
 
-	s.logger.InfoTag(TagSuccess, "触屏设备修复成功")
-	elog.Info(1, "触屏设备修复成功")
-	s.stats.RecordReset(true, "修复成功")
-	s.notifier.NotifyResumeResult(true, false, deviceName, nil)
+	s.logger.InfoTag(TagCheck, "修复后设备状态: %s", finalStatus)
+
+	// 根据实际状态判断是否成功
+	if strings.EqualFold(finalStatus, "OK") {
+		s.logger.InfoTag(TagSuccess, "触屏设备修复成功")
+		elog.Info(1, "触屏设备修复成功")
+		s.stats.RecordReset(true, "修复成功")
+		s.notifier.NotifyResumeResult(true, false, deviceName, nil)
+		return true
+	}
+
+	// 修复后设备仍处于错误状态
+	s.logger.WarningTag(TagFail, "修复后设备仍处于异常状态: %s", finalStatus)
+	elog.Warning(1, fmt.Sprintf("修复后设备仍处于异常状态: %s", finalStatus))
+	s.stats.RecordReset(false, fmt.Sprintf("修复后状态: %s", finalStatus))
+	s.notifier.NotifyResumeResult(false, false, deviceName, fmt.Errorf("设备状态: %s", finalStatus))
+	return false
 }
 
 func runService() error {
@@ -380,4 +455,30 @@ func GetServiceConfigPath() string {
 	}
 	dir := filepath.Dir(exe)
 	return filepath.Join(dir, "config.json")
+}
+
+// getPowerEventName 返回电源事件的可读名称
+func (s *gpdTouchService) getPowerEventName(eventType uint32) string {
+	// Windows 电源事件类型
+	// https://docs.microsoft.com/en-us/windows/win32/power/power-management-events
+	switch eventType {
+	case 4: // PBT_APMPOWERSTATUSCHANGE
+		return "电源状态改变"
+	case 5: // PBT_APMRESUMEAUTOMATIC (旧版)
+		return "自动恢复(旧版)"
+	case 6: // PBT_APMRESUMECRITICAL (已废弃)
+		return "关键恢复(已废弃)"
+	case 7: // PBT_APMRESUMESUSPEND
+		return "从挂起恢复(盖子打开/电源按钮)"
+	case 9: // PBT_APMSUSPEND
+		return "系统挂起(盖子关闭/睡眠)"
+	case 10: // PBT_APMOEMEVENT
+		return "OEM事件"
+	case 18: // PBT_APMRESUMEAUTOMATIC
+		return "自动恢复(唤醒)"
+	case 0x8013: // PBT_POWERSETTINGCHANGE
+		return "电源设置变化(显示器/盖子状态)"
+	default:
+		return fmt.Sprintf("未知事件(%d)", eventType)
+	}
 }
