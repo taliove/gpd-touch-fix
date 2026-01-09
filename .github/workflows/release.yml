@@ -14,25 +14,31 @@ permissions:
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
-    
+
     steps:
       # 检出代码
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # 获取完整历史记录，用于生成 changelog
-      
+
       # 设置 Go 环境
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.24'
           cache: true
-      
+
+      # 运行 lint
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
       # 运行测试
       - name: Run tests
         run: go test -v ./...
-      
+
       # 运行 GoReleaser
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
@@ -42,7 +48,7 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
+
       # 上传构建产物为 artifacts（便于调试）
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

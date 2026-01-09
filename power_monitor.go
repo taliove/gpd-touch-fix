@@ -364,7 +364,7 @@ func (p *WakeEventPoller) incrementFails() bool {
 	}
 
 	// 指数退避：每次失败后间隔翻倍，但不超过最大值
-	p.currentInterval = p.currentInterval * 2
+	p.currentInterval *= 2
 	if p.currentInterval > p.maxRetryInterval {
 		p.currentInterval = p.maxRetryInterval
 	}
@@ -417,15 +417,15 @@ func (p *WakeEventPoller) poll() {
 		case paused := <-p.pauseChan:
 			// 处理暂停/恢复
 			if paused {
-				// 等待恢复信号
+				// 等待恢复信号或停止信号
+			waitLoop:
 				for {
 					select {
 					case <-p.stopChan:
 						return
-					case resumed := <-p.pauseChan:
-						if !resumed {
-							break // 跳出内层 for 循环
-						}
+					case <-p.pauseChan:
+						// 收到任何信号都跳出暂停状态
+						break waitLoop
 					}
 				}
 			}

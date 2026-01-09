@@ -80,11 +80,11 @@ func (c *Config) SaveConfig(path string) error {
 
 	// 确保目录存在
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("创建配置目录失败: %w", err)
 	}
 
-	if err := os.WriteFile(path, data, 0644); err != nil {
+	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return fmt.Errorf("写入配置文件失败: %w", err)
 	}
 

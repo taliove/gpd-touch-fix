@@ -1,0 +1,177 @@
+# golangci-lint 配置文件
+# 文档: https://golangci-lint.run/usage/configuration/
+
+run:
+  # 超时时间
+  timeout: 5m
+
+  # 只针对 Windows
+  build-tags:
+    - windows
+
+  # 跳过测试文件中的某些检查
+  tests: true
+
+linters:
+  # 启用的 linter
+  enable:
+    - errcheck      # 检查未处理的错误
+    - gosimple      # 简化代码建议
+    - govet         # go vet 检查
+    - ineffassign   # 检测无效赋值
+    - staticcheck   # 静态分析
+    - unused        # 检测未使用的代码
+    - gofmt         # 检查代码格式
+    - goimports     # 检查 import 格式
+    - misspell      # 拼写检查
+    - unconvert     # 检测不必要的类型转换
+    - gocritic      # 代码审查建议
+
+  # 禁用的 linter
+  disable:
+    - depguard      # 依赖守护（不需要）
+
+linters-settings:
+  errcheck:
+    # 检查类型断言
+    check-type-assertions: true
+    # 检查空白标识符
+    check-blank: false
+
+  govet:
+    # 启用所有分析器
+    enable-all: true
+    # 禁用某些分析器
+    disable:
+      - fieldalignment  # 字段对齐检查（性能优化，非必需）
+
+  staticcheck:
+    # 启用所有检查
+    checks: ["all"]
+
+  gocritic:
+    # 启用的检查类别
+    enabled-tags:
+      - diagnostic
+      - style
+      - performance
+    # 禁用某些规则
+    disabled-checks:
+      - hugeParam       # 大参数检查（Windows API 常见）
+      - rangeValCopy    # range 值拷贝（某些情况下必需）
+
+  misspell:
+    # 使用美式英语
+    locale: US
+
+issues:
+  # 跳过的目录
+  exclude-dirs:
+    - dist
+    - bin
+
+  # 排除规则
+  exclude-rules:
+    # 排除测试文件中的某些检查
+    - path: _test\.go
+      linters:
+        - errcheck
+        - gocritic
+
+    # 排除 main.go 中的 flag 相关未使用变量
+    - path: main\.go
+      text: "unused"
+      linters:
+        - unused
+
+    # 排除 Windows 系统调用相关的错误检查
+    - path: cli\.go
+      text: "Error return value"
+      linters:
+        - errcheck
+
+    # 排除 power_monitor.go 中的系统调用和未使用变量
+    - path: power_monitor\.go
+      linters:
+        - errcheck
+        - unused
+
+    # 排除 service.go 中的事件日志错误检查
+    - path: service\.go
+      text: "Error return value of `elog"
+      linters:
+        - errcheck
+
+    # 排除 runPowerShell 错误检查
+    - path: service\.go
+      text: "Error return value of `runPowerShell"
+      linters:
+        - errcheck
+
+    # 排除注释代码检查
+    - text: "commentedOutCode"
+      linters:
+        - gocritic
+
+    # 排除 sprintfQuotedString 检查（Windows 路径需要特殊处理）
+    - text: "sprintfQuotedString"
+      linters:
+        - gocritic
+
+    # 排除变量遮蔽检查（某些情况下是有意为之）
+    - text: "shadow"
+      linters:
+        - govet
+
+    # 排除 elseif 建议
+    - text: "elseif"
+      linters:
+        - gocritic
+
+    # 排除 ifElseChain 建议
+    - text: "ifElseChain"
+      linters:
+        - gocritic
+
+    # 排除参数类型合并建议
+    - text: "paramTypeCombine"
+      linters:
+        - gocritic
+
+    # 排除未命名返回值建议
+    - text: "unnamedResult"
+      linters:
+        - gocritic
+
+    # 排除 preferStringWriter 建议
+    - text: "preferStringWriter"
+      linters:
+        - gocritic
+
+    # 排除 S1039 不必要的 Sprintf（用于格式化输出保持一致性）
+    - text: "S1039"
+      linters:
+        - gosimple
+
+    # 排除 S1000 for range 建议（服务主循环需要处理多个通道）
+    - text: "S1000"
+      linters:
+        - gosimple
+
+  # 最大相同问题数量
+  max-same-issues: 3
+
+  # 显示所有问题
+  max-issues-per-linter: 0
+
+  # 新代码检查（可选，用于增量检查）
+  # new: true
+  # new-from-rev: HEAD~1
+
+output:
+  # 输出格式
+  formats:
+    - format: colored-line-number
+
+  # 按文件排序
+  sort-results: true

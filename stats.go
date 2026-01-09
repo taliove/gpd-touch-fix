@@ -79,7 +79,7 @@ func NewStatsManager(statsDir string) *StatsManager {
 	}
 
 	// 尝试加载已有统计
-	sm.load()
+	_ = sm.load()
 
 	return sm
 }
@@ -122,11 +122,11 @@ func (sm *StatsManager) save() error {
 	}
 
 	// 确保目录存在
-	if err := os.MkdirAll(sm.statsDir, 0755); err != nil {
+	if err := os.MkdirAll(sm.statsDir, 0o755); err != nil {
 		return err
 	}
 
-	return os.WriteFile(sm.getStatsFilePath(), data, 0644)
+	return os.WriteFile(sm.getStatsFilePath(), data, 0o644)
 }
 
 // checkDateRollover 检查日期变化，重置计数器
@@ -183,7 +183,7 @@ func (sm *StatsManager) RecordResume() {
 	sm.stats.TotalResumeEvents++
 	sm.stats.LastResumeTime = &now
 
-	sm.save()
+	_ = sm.save()
 }
 
 // RecordReset 记录修复事件
@@ -210,7 +210,7 @@ func (sm *StatsManager) RecordReset(success bool, result string) {
 		sm.stats.MonthFailures++
 	}
 
-	sm.save()
+	_ = sm.save()
 }
 
 // RecordSkip 记录跳过事件
@@ -229,7 +229,7 @@ func (sm *StatsManager) RecordSkip() {
 	sm.stats.WeekSkips++
 	sm.stats.MonthSkips++
 
-	sm.save()
+	_ = sm.save()
 }
 
 // GetStats 获取统计数据副本
@@ -252,17 +252,17 @@ func (sm *StatsManager) FormatStats() string {
 	result += "╠══════════════════════════════════════════╣\n"
 
 	// 今日统计
-	result += fmt.Sprintf("║ 📅 今日                                  ║\n")
+	result += "║ 📅 今日                                  ║\n"
 	result += fmt.Sprintf("║    修复: %-3d  跳过: %-3d  失败: %-3d       ║\n",
 		stats.TodayResets, stats.TodaySkips, stats.TodayFailures)
 
 	// 本周统计
-	result += fmt.Sprintf("║ 📆 本周                                  ║\n")
+	result += "║ 📆 本周                                  ║\n"
 	result += fmt.Sprintf("║    修复: %-3d  跳过: %-3d  失败: %-3d       ║\n",
 		stats.WeekResets, stats.WeekSkips, stats.WeekFailures)
 
 	// 本月统计
-	result += fmt.Sprintf("║ 🗓️  本月                                  ║\n")
+	result += "║ 🗓️  本月                                  ║\n"
 	result += fmt.Sprintf("║    修复: %-3d  跳过: %-3d  失败: %-3d       ║\n",
 		stats.MonthResets, stats.MonthSkips, stats.MonthFailures)
 
@@ -292,11 +292,11 @@ func (sm *StatsManager) FormatStats() string {
 
 	if stats.LastResetResult != "" {
 		// 截断结果字符串以适应宽度
-		result := stats.LastResetResult
-		if len(result) > 28 {
-			result = result[:25] + "..."
+		displayResult := stats.LastResetResult
+		if len(displayResult) > 28 {
+			displayResult = displayResult[:25] + "..."
 		}
-		result = fmt.Sprintf("║    结果: %-32s ║\n", result)
+		result += fmt.Sprintf("║    结果: %-32s ║\n", displayResult)
 	}
 
 	result += "╚══════════════════════════════════════════╝\n"

@@ -36,8 +36,8 @@
 - 一个PR应专注于单一功能或修复
 - PR标题清晰明了
 - PR描述包含为什么做这个改动
-- 通过所有测试（`go test ./...`）
-- 代码格式规范（`go fmt ./...`）
+- 通过所有检查（`make all`）
+- Lint 检查通过（`make lint`）
 - 添加适当的测试用例
 
 ## 代码规范
@@ -45,10 +45,10 @@
 ### Golang规范
 
 - 遵循 [Effective Go](https://golang.org/doc/effective_go) 的规范
+- 使用 `make lint` 检查代码（基于 golangci-lint）
 - 使用 `go fmt` 格式化代码
-- 使用 `go vet` 检查代码
 - 函数和类型需要添加注释说明
-- 包含单元测试（目标覆盖率80%+）
+- 包含单元测试（目标覆盖率60%+）
 
 ### 注释规范
 
@@ -80,17 +80,26 @@ chore: update dependencies
 ### 本地开发和测试
 
 ```powershell
-# 本地开发构建（快速测试）
-go build -o bin/gpd-touch-fix.exe
+# 完整检查（lint + test + build）
+make all
+
+# 本地开发构建
+make build
+
+# 运行 lint 检查
+make lint
 
 # 运行测试
-go test ./...
+make test
 
 # 运行测试并显示覆盖率
-go test -cover ./...
+make coverage
 
-# 详细测试输出
-go test -v ./...
+# 清理构建产物
+make clean
+
+# 查看所有可用命令
+make help
 ```
 
 ### 本地测试 GoReleaser
@@ -135,20 +144,21 @@ goreleaser check
    ```
 
 3. **自动构建和发布**
-   
+
    推送 tag 后，GitHub Actions 会自动：
+   - 运行 lint 检查
    - 运行所有单元测试
-   - 使用 GoReleaser 构建 Windows x64 和 x86 版本
+   - 使用 GoReleaser 构建 Windows x64 版本
    - 生成 ZIP 归档包
    - 自动创建 GitHub Release
    - 上传构建产物
    - 生成并附加 changelog
 
 4. **验证发布**
-   
+
    前往 [Releases](https://github.com/gpd-touch/gpd-touch-fix/releases) 页面验证：
    - Release 是否正确创建
-   - 所有归档文件是否已上传（x64 和 x86 版本）
+   - 归档文件是否已上传（x64 版本）
    - Changelog 是否正确生成
    - 下载并测试二进制文件
 
@@ -166,7 +176,7 @@ goreleaser check
 
 发布前确认：
 
-- [ ] 所有测试通过
+- [ ] `make all` 通过（lint + test + build）
 - [ ] CHANGELOG.md 已更新
 - [ ] 版本号符合语义化版本规范
 - [ ] README.md 中的功能描述是最新的

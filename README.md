@@ -83,7 +83,23 @@ A: 理论上支持所有使用 I2C HID 触摸屏的 GPD 设备（Pocket、Win �
 
 欢迎提交 Issue 和 Pull Request！
 
-开发者请查看：
+### 开发者快速入门
+
+```powershell
+# 克隆仓库
+git clone https://github.com/gpd-touch/gpd-touch-fix.git
+cd gpd-touch-fix
+
+# 运行完整检查（lint + test + build）
+make all
+
+# 或单独运行
+make lint      # 代码检查
+make test      # 运行测试
+make build     # 构建可执行文件
+```
+
+更多信息请查看：
 - [贡献指南](CONTRIBUTING.md) - 如何参与贡献
 - [GoReleaser 使用文档](docs/GORELEASER.md) - 如何发布新版本（维护者）
 

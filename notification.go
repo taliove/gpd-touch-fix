@@ -155,14 +155,14 @@ func (n *Notifier) NotifyResumeResult(fixed bool, skipped bool, deviceName strin
 	if err != nil {
 		title = "触屏修复失败"
 		message = fmt.Sprintf("设备: %s\n错误: %v", deviceName, err)
-		n.SendError(title, message)
+		_ = n.SendError(title, message)
 	} else if skipped {
 		title = "触屏状态正常"
 		message = fmt.Sprintf("设备 %s 状态正常，无需修复", deviceName)
-		n.SendInfo(title, message)
+		_ = n.SendInfo(title, message)
 	} else if fixed {
 		title = "触屏已修复"
 		message = fmt.Sprintf("设备 %s 已成功修复", deviceName)
-		n.SendSuccess(title, message)
+		_ = n.SendSuccess(title, message)
 	}
 }

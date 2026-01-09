@@ -53,6 +53,16 @@ var (
 	loggerOnce   sync.Once
 )
 
+// resetLoggerForTesting 仅用于测试，重置全局 logger 状态
+// 注意：此函数不是线程安全的，仅在测试中使用
+func resetLoggerForTesting() {
+	if globalLogger != nil {
+		_ = globalLogger.Close()
+		globalLogger = nil
+	}
+	loggerOnce = sync.Once{}
+}
+
 // InitLogger 初始化全局日志记录器
 func InitLogger(logDir string, level LogLevel) error {
 	var err error
@@ -64,7 +74,7 @@ func InitLogger(logDir string, level LogLevel) error {
 
 		// 创建日志目录
 		if logDir != "" {
-			if err = os.MkdirAll(logDir, 0755); err != nil {
+			if err = os.MkdirAll(logDir, 0o755); err != nil {
 				return
 			}
 
@@ -73,7 +83,7 @@ func InitLogger(logDir string, level LogLevel) error {
 				time.Now().Format("2006-01-02")))
 
 			globalLogger.file, err = os.OpenFile(logFile,
-				os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+				os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 			if err != nil {
 				return
 			}
@@ -92,7 +102,7 @@ func InitLogger(logDir string, level LogLevel) error {
 // GetLogger 获取全局日志记录器
 func GetLogger() *Logger {
 	if globalLogger == nil {
-		InitLogger("", INFO)
+		_ = InitLogger("", INFO)
 	}
 	return globalLogger
 }
@@ -235,23 +245,6 @@ func (l *Logger) LogToFile(content string) error {
 	return err
 }
 
-// 便捷方法：全局日志函数
-func LogDebug(format string, args ...interface{}) {
-	GetLogger().Debug(format, args...)
-}
-
-func LogInfo(format string, args ...interface{}) {
-	GetLogger().Info(format, args...)
-}
-
-func LogWarning(format string, args ...interface{}) {
-	GetLogger().Warning(format, args...)
-}
-
-func LogError(format string, args ...interface{}) {
-	GetLogger().Error(format, args...)
-}
-
 // GetLogDir 获取日志目录
 func GetLogDir() string {
 	exe, err := os.Executable()
@@ -376,7 +369,7 @@ func CleanOldLogs(maxDays int) error {
 		}
 
 		if info.ModTime().Before(cutoff) {
-			os.Remove(file)
+			_ = os.Remove(file)
 		}
 	}
 

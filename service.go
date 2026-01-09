@@ -123,14 +123,39 @@ func (s *gpdTouchService) handlePowerEvent(elog *eventlog.Log, eventType uint32)
 		return
 	}
 
-	// 对于OEM事件，如果有轮询器，触发它立即检测而不是自己处理
+	// 对于OEM事件，直接检查设备状态并在需要时修复
+	// 注意：OEM事件通常是系统从Modern Standby唤醒的信号
 	if isOemEvent {
+		s.logger.InfoTag(TagService, "收到OEM事件，立即检查设备状态")
+
+		// 恢复轮询器（如果被暂停）
 		if s.poller != nil {
-			// 恢复轮询器（如果被暂停），并重置其重试状态
 			s.poller.Resume()
 			s.poller.ResetRetryState()
-			s.logger.InfoTag(TagService, "收到OEM事件，已触发设备状态检测")
 		}
+
+		// 直接检查设备状态并在需要时修复（异步执行避免阻塞）
+		go func(elog *eventlog.Log) {
+			// 短暂等待系统稳定
+			time.Sleep(2 * time.Second)
+
+			dm := NewDeviceManager(s.cfg.DeviceInstanceID)
+			status, err := dm.GetStatus()
+			if err != nil {
+				s.logger.ErrorTag(TagCheck, "OEM事件后获取设备状态失败: %v", err)
+				return
+			}
+
+			s.logger.InfoTag(TagCheck, "OEM事件后设备状态: %s", status)
+
+			if !strings.EqualFold(status, "OK") {
+				s.logger.InfoTag(TagResume, "OEM事件后检测到设备异常，执行修复")
+				// 使用 handlePolledWake 执行修复（它已包含完整的修复逻辑）
+				s.handlePolledWake(elog)
+			} else {
+				s.logger.InfoTag(TagCheck, "OEM事件后设备状态正常，无需修复")
+			}
+		}(elog)
 		return
 	}
 
@@ -348,7 +373,7 @@ func runService() error {
 
 	// 清理过期日志
 	if cfg.MaxLogDays > 0 {
-		CleanOldLogs(cfg.MaxLogDays)
+		_ = CleanOldLogs(cfg.MaxLogDays)
 	}
 
 	// 初始化统计
@@ -399,7 +424,7 @@ func installService() error {
 func uninstallService() error {
 	// 停止服务
 	stopCmd := fmt.Sprintf(`sc.exe stop "%s"`, serviceName)
-	runPowerShell(stopCmd) // 忽略错误，服务可能未运行
+	_, _ = runPowerShell(stopCmd) // 忽略错误，服务可能未运行
 
 	// 删除服务
 	deleteCmd := fmt.Sprintf(`sc.exe delete "%s"`, serviceName)
@@ -440,11 +465,11 @@ func stopService() error {
 }
 
 func isService() bool {
-	isIntSess, err := svc.IsAnInteractiveSession()
+	isIntSess, err := svc.IsWindowsService()
 	if err != nil {
 		log.Fatalf("无法确定会话类型: %v", err)
 	}
-	return !isIntSess
+	return isIntSess
 }
 
 // GetConfigPath 在服务模式下返回可执行文件目录的配置路径
