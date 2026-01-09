@@ -29,15 +29,6 @@ builds:
     
     goarch:
       - amd64  # 64位
-    
-    # 构建钩子（可选）
-    hooks:
-      post: |
-        {{- if eq .Os "windows" }}
-        cmd /c echo "Built {{.Path}} for {{.Os}}/{{.Arch}}"
-        {{- else }}
-        echo "Built {{.Path}} for {{.Os}}/{{.Arch}}"
-        {{- end }}
 
 # 归档配置
 archives:
