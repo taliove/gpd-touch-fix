@@ -1,0 +1,23 @@
+# Set default behavior to automatically normalize line endings
+* text=auto
+
+# Go files should always use LF
+*.go text eol=lf
+
+# Shell scripts should use LF
+*.sh text eol=lf
+
+# Windows batch/PowerShell scripts can use CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Config files should use LF for cross-platform compatibility
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
+
+# Makefiles must use LF
+Makefile text eol=lf
