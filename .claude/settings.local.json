@@ -21,7 +21,10 @@
       "Bash(make all:*)",
       "Bash(make lint:*)",
       "Bash(make test)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git tag:*)"
     ]
   }
 }
