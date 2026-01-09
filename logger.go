@@ -65,6 +65,11 @@ func resetLoggerForTesting() {
 
 // InitLogger 初始化全局日志记录器
 func InitLogger(logDir string, level LogLevel) error {
+	return InitLoggerWithOptions(logDir, level, true)
+}
+
+// InitLoggerWithOptions 初始化全局日志记录器（带选项）
+func InitLoggerWithOptions(logDir string, level LogLevel, enableConsole bool) error {
 	var err error
 	loggerOnce.Do(func() {
 		globalLogger = &Logger{
@@ -92,8 +97,10 @@ func InitLogger(logDir string, level LogLevel) error {
 			globalLogger.fileLogger = log.New(globalLogger.file, "", 0)
 		}
 
-		// 设置标准日志器
-		globalLogger.stdLogger = log.New(os.Stdout, "", 0)
+		// 设置标准日志器（可选）
+		if enableConsole {
+			globalLogger.stdLogger = log.New(os.Stdout, "", 0)
+		}
 	})
 
 	return err

@@ -116,6 +116,18 @@ make coverage
 - **ci.yml**: Runs on push/PR - lint, test, build
 - **release.yml**: Runs on tag push - lint, test, build, release
 
+### CI/CD Notes (Important)
+
+1. **Windows-only project**: This is a Windows-specific project. All CI jobs (lint, test, build) must run on `windows-latest` to avoid cross-compilation issues.
+
+2. **YAML duplicate keys**: When editing `.golangci.yml`, ensure no duplicate top-level keys (e.g., don't define `issues:` twice). YAML parsers will fail with duplicate key errors.
+
+3. **Test output and GitHub Actions**: GitHub Actions interprets lines starting with `Error:` as error annotations. When writing tests that log error-level messages:
+   - Use `InitLoggerWithOptions(dir, level, false)` to disable console output in tests
+   - This prevents test log output from being misinterpreted as CI errors
+
+4. **golangci-lint on Linux for Windows code**: If running lint on ubuntu-latest for Windows code, you must set `GOOS: windows` as an environment variable. However, it's simpler to just run on `windows-latest`.
+
 ### Release Process
 
 Releases are automated via GitHub Actions when a version tag is pushed:

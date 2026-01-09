@@ -13,7 +13,7 @@ func TestInitLogger(t *testing.T) {
 	// 重置全局 logger
 	resetLoggerForTesting()
 
-	err := InitLogger(tmpDir, INFO)
+	err := InitLoggerWithOptions(tmpDir, INFO, false)
 	if err != nil {
 		t.Fatalf("InitLogger() error = %v", err)
 	}
@@ -41,7 +41,7 @@ func TestLogger_LogLevels(t *testing.T) {
 	// 重置全局 logger
 	resetLoggerForTesting()
 
-	err := InitLogger(tmpDir, DEBUG)
+	err := InitLoggerWithOptions(tmpDir, DEBUG, false)
 	if err != nil {
 		t.Fatalf("InitLogger() error = %v", err)
 	}
@@ -85,7 +85,7 @@ func TestLogger_LogWithTag(t *testing.T) {
 	// 重置全局 logger
 	resetLoggerForTesting()
 
-	err := InitLogger(tmpDir, INFO)
+	err := InitLoggerWithOptions(tmpDir, INFO, false)
 	if err != nil {
 		t.Fatalf("InitLogger() error = %v", err)
 	}
@@ -123,7 +123,7 @@ func TestLogger_SetLevel(t *testing.T) {
 	// 重置全局 logger
 	resetLoggerForTesting()
 
-	err := InitLogger(tmpDir, ERROR)
+	err := InitLoggerWithOptions(tmpDir, ERROR, false)
 	if err != nil {
 		t.Fatalf("InitLogger() error = %v", err)
 	}
