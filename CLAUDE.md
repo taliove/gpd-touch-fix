@@ -128,6 +128,11 @@ make coverage
 
 4. **golangci-lint on Linux for Windows code**: If running lint on ubuntu-latest for Windows code, you must set `GOOS: windows` as an environment variable. However, it's simpler to just run on `windows-latest`.
 
+5. **Line endings (CRLF vs LF)**: Go files must use LF line endings for gofmt to pass. On Windows CI:
+   - Add `.gitattributes` with `*.go text eol=lf` to force LF in repo
+   - Run `git config --global core.autocrlf false` before checkout in CI workflows
+   - This prevents git from converting LF to CRLF on Windows checkout
+
 ### Release Process
 
 Releases are automated via GitHub Actions when a version tag is pushed:
